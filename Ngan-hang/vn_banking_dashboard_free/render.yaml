@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: minhtriinvest-banking-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: BANKING_WRITE_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SSI_API_KEY
+        sync: false
+      - key: SSI_API_SECRET
+        sync: false
+      - key: SSI_V3_BASE_URL
+        value: https://api.ssi.com.vn

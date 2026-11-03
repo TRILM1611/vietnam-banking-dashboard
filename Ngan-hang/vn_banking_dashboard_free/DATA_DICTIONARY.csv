@@ -1,0 +1,16 @@
+metric,description,unit,formula_or_definition,frequency,preferred_source
+assets,Tổng tài sản,tỷ đồng,Theo BCTC hợp nhất,Quarterly,BCTC hợp nhất
+loans,Cho vay khách hàng,tỷ đồng,Cho vay khách hàng cuối kỳ,Quarterly,Thuyết minh BCTC
+ deposits,Tiền gửi khách hàng,tỷ đồng,Tiền gửi khách hàng cuối kỳ,Quarterly,Thuyết minh BCTC
+casa,Tỷ lệ CASA,%,Tiền gửi không kỳ hạn / tiền gửi khách hàng,Quarterly,Báo cáo nhà đầu tư hoặc thuyết minh
+ldr,LDR nội bộ,%,Cho vay khách hàng / tiền gửi khách hàng; không đồng nhất LDR pháp lý,Quarterly,Tự tính từ BCTC
+nim,NIM,%,Thu nhập lãi thuần / tài sản sinh lãi bình quân,Quarterly/TTM,Tính toán; phải thống nhất mẫu số
+roe,ROE,%,LNST / vốn chủ sở hữu bình quân,Quarterly/TTM,Tính toán; ghi rõ annualization
+cir,CIR,%,Chi phí hoạt động / tổng thu nhập hoạt động,Quarterly/TTM,BCTC
+npl,NPL,%,Nợ nhóm 3-5 / tổng dư nợ,Quarterly,Công bố ngân hàng/BCTC
+group2,Nợ nhóm 2,%,Nợ cần chú ý / tổng dư nợ,Quarterly,Thuyết minh BCTC
+llr,LLR,%,Tỷ lệ bao phủ nợ xấu; ghi rõ định nghĩa nguồn,Quarterly,Công bố ngân hàng
+car,CAR,%,Tỷ lệ an toàn vốn; ghi rõ solo/hợp nhất và chuẩn tính,Quarterly/Annual,Công bố ngân hàng
+price,Giá cổ phiếu,đồng/cp,Giá đóng cửa; ghi rõ điều chỉnh/chưa điều chỉnh,Daily,Nhà cung cấp dữ liệu được cấp phép
+bvps,BVPS,đồng/cp,Vốn chủ sở hữu thuộc cổ đông công ty mẹ / số cổ phiếu,Quarterly,Tự tính
+eps,EPS,đồng/cp,EPS cơ bản/pha loãng; ghi rõ TTM/FY,Quarterly,BCTC hoặc nhà cung cấp
