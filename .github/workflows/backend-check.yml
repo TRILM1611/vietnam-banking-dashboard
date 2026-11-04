@@ -4,12 +4,12 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "Vietnam_Banking_Dashboard_V1.1/vn_banking_dashboard_free/backend/**"
+      - "Ngan-hang/vn_banking_dashboard_free/backend/**"
       - ".github/workflows/backend-check.yml"
   push:
     branches: [main]
     paths:
-      - "Vietnam_Banking_Dashboard_V1.1/vn_banking_dashboard_free/backend/**"
+      - "Ngan-hang/vn_banking_dashboard_free/backend/**"
 
 jobs:
   compile:
