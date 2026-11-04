@@ -3,7 +3,7 @@ Supports SQLite for local development and PostgreSQL/Supabase via DATABASE_URL.
 Provider secrets stay server-side. No vendor fundamental feed is enabled by default.
 """
 from __future__ import annotations
-import csv, io, os, secrets
+import csv, io, os, secrets, re
 from datetime import datetime, timezone
 from typing import Optional
 import requests
@@ -65,14 +65,27 @@ class ObservationIn(BaseModel):
     note: Optional[str] = None
 
 METRIC_CATALOG = {
- "assets": {"label":"Tổng tài sản", "unit":"tỷ đồng"}, "loans":{"label":"Dư nợ cho vay khách hàng","unit":"tỷ đồng"},
- "deposits":{"label":"Tiền gửi khách hàng","unit":"tỷ đồng"}, "casa":{"label":"CASA","unit":"%"},
- "credit_growth":{"label":"Tăng trưởng tín dụng","unit":"%"}, "nim":{"label":"NIM","unit":"%"},
- "roe":{"label":"ROE","unit":"%"}, "roa":{"label":"ROA","unit":"%"}, "cir":{"label":"CIR","unit":"%"},
- "npl":{"label":"NPL","unit":"%"}, "group2":{"label":"Nợ nhóm 2","unit":"%"}, "llr":{"label":"LLR","unit":"%"},
- "car":{"label":"CAR","unit":"%"}, "cost_of_funds":{"label":"Cost of Funds","unit":"%"},
- "price":{"label":"Giá cổ phiếu","unit":"đồng"}, "bvps":{"label":"BVPS","unit":"đồng"}, "eps":{"label":"EPS","unit":"đồng"}}
-
+ "assets": {"label":"Tổng tài sản","unit":"tỷ đồng","frequency":"quarterly","type":"stock","definition":"Tổng tài sản tại ngày kết thúc kỳ; ưu tiên BCTC hợp nhất.","caveat":"Không cộng số liệu riêng lẻ với hợp nhất; thống nhất đơn vị tỷ đồng."},
+ "loans": {"label":"Cho vay khách hàng (dư nợ gốc)","unit":"tỷ đồng","frequency":"quarterly","type":"stock","definition":"Dư nợ gốc cho vay khách hàng cuối kỳ, trước dự phòng rủi ro.","caveat":"Không thay thế dư nợ tín dụng toàn hệ thống; không đồng nhất với giá trị thuần sau dự phòng."},
+ "loans_net": {"label":"Cho vay khách hàng (giá trị thuần)","unit":"tỷ đồng","frequency":"quarterly","type":"stock","definition":"Giá trị cho vay khách hàng sau khi trừ dự phòng rủi ro cho vay khách hàng.","caveat":"Không đồng nhất với dư nợ gốc; lưu và so sánh tách biệt."},
+ "funding_deposits_and_securities": {"label":"Tiền gửi khách hàng và giấy tờ có giá phát hành","unit":"tỷ đồng","frequency":"quarterly","type":"stock","definition":"Tiền gửi khách hàng cộng phát hành giấy tờ có giá cuối kỳ.","caveat":"Không đồng nhất với tiền gửi khách hàng; chỉ so sánh với cùng định nghĩa."},
+ "deposits": {"label":"Tiền gửi khách hàng","unit":"tỷ đồng","frequency":"quarterly","type":"stock","definition":"Tiền gửi của khách hàng cuối kỳ.","caveat":"Không cộng tiền gửi và vay các TCTD vào tiền gửi khách hàng."},
+ "casa": {"label":"CASA","unit":"%","frequency":"quarterly","type":"ratio","definition":"Tiền gửi không kỳ hạn / tổng tiền gửi khách hàng × 100%.","caveat":"Chỉ so sánh khi cách phân loại tiền gửi không kỳ hạn đồng nhất."},
+ "credit_growth": {"label":"Tăng trưởng tín dụng","unit":"%","frequency":"quarterly","type":"growth","definition":"(Dư nợ cuối kỳ / dư nợ cuối năm trước − 1) × 100%, trừ khi nguồn nêu rõ cơ sở khác.","caveat":"Phân biệt tăng trưởng YTD với tăng trưởng YoY; không trộn hai cơ sở."},
+ "nim": {"label":"NIM","unit":"%","frequency":"quarterly_ttm","type":"ratio","definition":"Thu nhập lãi thuần / tài sản sinh lãi bình quân; ưu tiên TTM hoặc annualized nhất quán.","caveat":"Phải lưu rõ kỳ tính, cách annualize và mẫu số tài sản sinh lãi."},
+ "roe": {"label":"ROE","unit":"%","frequency":"quarterly_ttm","type":"ratio","definition":"Lợi nhuận sau thuế thuộc cổ đông công ty mẹ / vốn chủ sở hữu bình quân × 100%.","caveat":"Phân biệt ROE quý annualized, ROE TTM và ROE cả năm."},
+ "roa": {"label":"ROA","unit":"%","frequency":"quarterly_ttm","type":"ratio","definition":"Lợi nhuận sau thuế / tổng tài sản bình quân × 100%.","caveat":"Phải ghi rõ lợi nhuận trước/sau thuế và annualization."},
+ "cir": {"label":"CIR","unit":"%","frequency":"quarterly_ttm","type":"ratio","definition":"Chi phí hoạt động / tổng thu nhập hoạt động × 100%.","caveat":"Đối chiếu cách phân loại thu nhập hoạt động và chi phí hoạt động."},
+ "npl": {"label":"NPL – nợ xấu","unit":"%","frequency":"quarterly","type":"ratio","definition":"Nợ nhóm 3–5 / tổng dư nợ cho vay khách hàng × 100%.","caveat":"Ghi rõ phạm vi hợp nhất/riêng lẻ và cơ sở phân loại."},
+ "group2": {"label":"Nợ nhóm 2","unit":"%","frequency":"quarterly","type":"ratio","definition":"Nợ nhóm 2 / tổng dư nợ cho vay khách hàng × 100%.","caveat":"Không đồng nhất nợ nhóm 2 với nợ xấu."},
+ "llr": {"label":"LLR – bao phủ nợ xấu","unit":"%","frequency":"quarterly","type":"ratio","definition":"Dự phòng rủi ro tín dụng cho vay khách hàng / nợ xấu × 100%, theo định nghĩa nguồn.","caveat":"Định nghĩa tử số có thể khác giữa ngân hàng; cần ghi chú nguồn."},
+ "car": {"label":"CAR – an toàn vốn","unit":"%","frequency":"quarterly_or_annual","type":"ratio","definition":"Tỷ lệ an toàn vốn theo công bố của ngân hàng.","caveat":"Bắt buộc ghi chuẩn áp dụng, phạm vi solo/hợp nhất và ngày hiệu lực."},
+ "ldr": {"label":"LDR nội bộ","unit":"%","frequency":"quarterly","type":"derived_ratio","definition":"Cho vay khách hàng / tiền gửi khách hàng × 100%.","caveat":"Chỉ là chỉ tiêu so sánh nội bộ; không đồng nhất LDR pháp lý theo quy định NHNN."},
+ "cost_of_funds": {"label":"Cost of Funds","unit":"%","frequency":"quarterly_ttm","type":"ratio","definition":"Chi phí lãi / nguồn vốn chịu lãi bình quân × 100%, theo phương pháp nhất quán.","caveat":"Ghi rõ phạm vi nguồn vốn chịu lãi và kỳ annualization."},
+ "price": {"label":"Giá cổ phiếu","unit":"đồng/cp","frequency":"daily","type":"market","definition":"Giá đóng cửa tại ngày giao dịch; ghi rõ điều chỉnh/chưa điều chỉnh.","caveat":"Không trộn giá đã điều chỉnh và chưa điều chỉnh."},
+ "bvps": {"label":"BVPS","unit":"đồng/cp","frequency":"quarterly","type":"per_share","definition":"Vốn chủ sở hữu thuộc cổ đông công ty mẹ / số cổ phiếu lưu hành tương ứng.","caveat":"Ghi rõ số cổ phiếu cuối kỳ hay bình quân; lưu ý lợi ích cổ đông không kiểm soát."},
+ "eps": {"label":"EPS","unit":"đồng/cp","frequency":"quarterly_ttm_or_fy","type":"per_share","definition":"EPS cơ bản hoặc pha loãng; cần ghi rõ TTM/FY và phương pháp.","caveat":"Không dùng EPS quý chưa annualize để so trực tiếp với EPS TTM."}
+}
 def require_write(x_api_key: Optional[str] = Header(None)):
     if not WRITE_KEY or not secrets.compare_digest(x_api_key or "", WRITE_KEY):
         raise HTTPException(401, "Missing or invalid X-API-Key. Configure BANKING_WRITE_KEY on the server.")
@@ -92,9 +105,16 @@ def get_banks():
     with engine.connect() as c: return rowdicts(c.execute(text("SELECT * FROM banks ORDER BY ticker")))
 @app.post("/banks", dependencies=[Depends(require_write)])
 def save_bank(b: BankIn):
+    ticker = b.ticker.strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{2,20}", ticker):
+        raise HTTPException(422, "Invalid ticker format")
+    if b.listing_status and b.listing_status.lower() not in {"listed", "registered", "trading", "unlisted", "suspended", "delisted"}:
+        raise HTTPException(422, "Invalid listing_status")
+    if b.registry_status not in {"verified", "needs_verification", "source_only", "review_required"}:
+        raise HTTPException(422, "Invalid registry_status")
     with engine.begin() as c:
-        c.execute(text("""INSERT INTO banks(ticker,name,institution_type,ownership_type,listing_status,exchange,official_url,registry_status,updated_at) VALUES(:ticker,:name,:institution_type,:ownership_type,:listing_status,:exchange,:official_url,:registry_status,CURRENT_TIMESTAMP) ON CONFLICT(ticker) DO UPDATE SET name=excluded.name,institution_type=excluded.institution_type,ownership_type=excluded.ownership_type,listing_status=excluded.listing_status,exchange=excluded.exchange,official_url=excluded.official_url,registry_status=excluded.registry_status,updated_at=CURRENT_TIMESTAMP"""), {**b.model_dump(),"ticker":b.ticker.upper()})
-    return {"saved":b.ticker.upper()}
+        c.execute(text("""INSERT INTO banks(ticker,name,institution_type,ownership_type,listing_status,exchange,official_url,registry_status,updated_at) VALUES(:ticker,:name,:institution_type,:ownership_type,:listing_status,:exchange,:official_url,:registry_status,CURRENT_TIMESTAMP) ON CONFLICT(ticker) DO UPDATE SET name=excluded.name,institution_type=excluded.institution_type,ownership_type=excluded.ownership_type,listing_status=excluded.listing_status,exchange=excluded.exchange,official_url=excluded.official_url,registry_status=excluded.registry_status,updated_at=CURRENT_TIMESTAMP"""), {**b.model_dump(),"ticker":ticker})
+    return {"saved":ticker}
 @app.get("/observations")
 def get_observations(ticker: Optional[str]=None, period: Optional[str]=None, metric: Optional[str]=None, limit: int=5000):
     q="SELECT * FROM observations WHERE 1=1"; p={}
@@ -103,10 +123,18 @@ def get_observations(ticker: Optional[str]=None, period: Optional[str]=None, met
     q+=" ORDER BY period DESC,ticker,metric LIMIT :limit"; p["limit"]=max(1,min(limit,20000))
     with engine.connect() as c: return rowdicts(c.execute(text(q),p))
 def _upsert_observation(o: ObservationIn):
+    ticker = o.ticker.strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{2,20}", ticker): raise HTTPException(422, "Invalid ticker format")
+    if not re.fullmatch(r"(?:Q[1-4]/20\d{2}|H[1-2]/20\d{2}|FY20\d{2})", o.period): raise HTTPException(422, "Invalid period. Use Q1/2026, H1/2026 or FY2025")
     if o.metric not in METRIC_CATALOG: raise HTTPException(422, "Unknown metric. See /metrics/catalog")
+    if o.consolidation not in {"consolidated", "separate", "not_disclosed"}: raise HTTPException(422, "Invalid consolidation. Use consolidated, separate or not_disclosed")
+    if o.value is not None and not (-1e15 < o.value < 1e15): raise HTTPException(422, "Value is outside the accepted range")
+    if o.verification_status not in {"unverified", "verified", "review_required", "source_only"}: raise HTTPException(422, "Invalid verification_status")
     with engine.begin() as c:
-        c.execute(text("""INSERT INTO observations(ticker,period,metric,value,unit,consolidation,source_name,source_url,published_at,verification_status,note,retrieved_at) VALUES(:ticker,:period,:metric,:value,:unit,:consolidation,:source_name,:source_url,:published_at,:verification_status,:note,CURRENT_TIMESTAMP) ON CONFLICT(ticker,period,metric,consolidation) DO UPDATE SET value=excluded.value,unit=excluded.unit,source_name=excluded.source_name,source_url=excluded.source_url,published_at=excluded.published_at,verification_status=excluded.verification_status,note=excluded.note,retrieved_at=CURRENT_TIMESTAMP"""), {**o.model_dump(),"ticker":o.ticker.upper()})
-    return {"saved":True,"ticker":o.ticker.upper(),"period":o.period,"metric":o.metric}
+        exists = c.execute(text("SELECT 1 FROM banks WHERE ticker=:ticker"), {"ticker": ticker}).first()
+        if not exists: raise HTTPException(422, f"Unknown bank {ticker}. Import the bank registry first.")
+        c.execute(text("""INSERT INTO observations(ticker,period,metric,value,unit,consolidation,source_name,source_url,published_at,verification_status,note,retrieved_at) VALUES(:ticker,:period,:metric,:value,:unit,:consolidation,:source_name,:source_url,:published_at,:verification_status,:note,CURRENT_TIMESTAMP) ON CONFLICT(ticker,period,metric,consolidation) DO UPDATE SET value=excluded.value,unit=excluded.unit,source_name=excluded.source_name,source_url=excluded.source_url,published_at=excluded.published_at,verification_status=excluded.verification_status,note=excluded.note,retrieved_at=CURRENT_TIMESTAMP"""), {**o.model_dump(),"ticker":ticker})
+    return {"saved":True,"ticker":ticker,"period":o.period,"metric":o.metric}
 
 @app.post("/observations", dependencies=[Depends(require_write)])
 def save_observation(o: ObservationIn):
@@ -116,6 +144,20 @@ def metric_catalog(): return METRIC_CATALOG
 @app.get("/sources/status")
 def sources_status():
     with engine.connect() as c: return rowdicts(c.execute(text("SELECT * FROM source_registry ORDER BY source_key")))
+@app.get("/dashboard/periods")
+def dashboard_periods():
+    with engine.connect() as c:
+        periods = [r[0] for r in c.execute(text("SELECT DISTINCT period FROM observations")).fetchall()]
+    def period_key(value):
+        q=re.fullmatch(r"Q([1-4])/(20\d{2})", value or "")
+        if q: return int(q.group(2))*10+int(q.group(1))
+        h=re.fullmatch(r"H([1-2])/(20\d{2})", value or "")
+        if h: return int(h.group(2))*10+int(h.group(1))*2
+        fy=re.fullmatch(r"FY(20\d{2})", value or "")
+        if fy: return int(fy.group(1))*10+5
+        return 0
+    return {"periods":sorted(periods,key=period_key,reverse=True)}
+
 @app.get("/dashboard/records")
 def dashboard_records(period: Optional[str]=None):
     q="SELECT o.*,b.name,b.exchange,b.listing_status FROM observations o LEFT JOIN banks b ON b.ticker=o.ticker WHERE 1=1"; p={}
@@ -124,8 +166,17 @@ def dashboard_records(period: Optional[str]=None):
     with engine.connect() as c: records=rowdicts(c.execute(text(q),p))
     grouped={}
     for r in records:
-        k=(r["ticker"],r["period"]); x=grouped.setdefault(k,{"ticker":r["ticker"],"name":r.get("name") or r["ticker"],"period":r["period"],"listed":(r.get("listing_status") or "").lower()=="listed","demo":False,"source":r.get("source_name"),"source_url":r.get("source_url"),"verification_status":r.get("verification_status")})
+        k=(r["ticker"],r["period"])
+        x=grouped.setdefault(k,{"ticker":r["ticker"],"name":r.get("name") or r["ticker"],"period":r["period"],"listed":(r.get("listing_status") or "").lower() in {"listed","registered","trading"},"listing_status":r.get("listing_status"),"exchange":r.get("exchange"),"demo":False,"sources_by_metric":{},"units_by_metric":{},"verification_by_metric":{}})
         x[r["metric"]]=r["value"]
+        x["sources_by_metric"][r["metric"]]={"name":r.get("source_name"),"url":r.get("source_url"),"published_at":r.get("published_at")}
+        x["units_by_metric"][r["metric"]]=r.get("unit")
+        x["verification_by_metric"][r["metric"]]=r.get("verification_status") or "unverified"
+    for x in grouped.values():
+        statuses=list(x["verification_by_metric"].values())
+        x["verification_status"]="verified" if statuses and all(v=="verified" for v in statuses) else ("review_required" if "review_required" in statuses else ("source_only" if statuses and all(v=="source_only" for v in statuses) else "unverified"))
+        source_names=sorted({v["name"] for v in x["sources_by_metric"].values() if v.get("name")})
+        x["source"]=source_names[0] if len(source_names)==1 else ("Multiple sources" if source_names else None)
     return list(grouped.values())
 @app.post("/import/banks-csv", dependencies=[Depends(require_write)])
 async def import_banks_csv(file: UploadFile=File(...)):
@@ -137,12 +188,24 @@ async def import_banks_csv(file: UploadFile=File(...)):
     required={"ticker","name"}
     if not rows or not required.issubset(set(rows[0])): raise HTTPException(422,"CSV must contain ticker,name columns")
     saved=0
+    skipped=[]
     with engine.begin() as c:
-        for r in rows:
-            if not r.get("ticker","").strip() or not r.get("name","").strip(): continue
-            c.execute(text("""INSERT INTO banks(ticker,name,institution_type,ownership_type,listing_status,exchange,official_url,registry_status,updated_at) VALUES(:ticker,:name,:institution_type,:ownership_type,:listing_status,:exchange,:official_url,:registry_status,CURRENT_TIMESTAMP) ON CONFLICT(ticker) DO UPDATE SET name=excluded.name,institution_type=excluded.institution_type,ownership_type=excluded.ownership_type,listing_status=excluded.listing_status,exchange=excluded.exchange,official_url=excluded.official_url,registry_status=excluded.registry_status,updated_at=CURRENT_TIMESTAMP"""), {"ticker":r["ticker"].strip().upper(),"name":r["name"].strip(),"institution_type":r.get("institution_type") or None,"ownership_type":r.get("ownership_type") or None,"listing_status":r.get("listing_status") or None,"exchange":r.get("exchange") or None,"official_url":r.get("official_url") or None,"registry_status":r.get("registry_status") or "needs_verification"})
+        for row_no, r in enumerate(rows, start=2):
+            ticker=(r.get("ticker") or "").strip().upper()
+            name=(r.get("name") or "").strip()
+            if not ticker or not name:
+                skipped.append({"row":row_no,"reason":"ticker and name are required"}); continue
+            if not re.fullmatch(r"[A-Z0-9]{2,20}",ticker):
+                skipped.append({"row":row_no,"reason":"invalid ticker format"}); continue
+            listing_status=(r.get("listing_status") or "").strip().lower() or None
+            if listing_status not in {None,"listed","registered","trading","unlisted","suspended","delisted"}:
+                skipped.append({"row":row_no,"reason":"invalid listing_status"}); continue
+            registry_status=(r.get("registry_status") or "needs_verification").strip()
+            if registry_status not in {"verified","needs_verification","source_only","review_required"}:
+                skipped.append({"row":row_no,"reason":"invalid registry_status"}); continue
+            c.execute(text("""INSERT INTO banks(ticker,name,institution_type,ownership_type,listing_status,exchange,official_url,registry_status,updated_at) VALUES(:ticker,:name,:institution_type,:ownership_type,:listing_status,:exchange,:official_url,:registry_status,CURRENT_TIMESTAMP) ON CONFLICT(ticker) DO UPDATE SET name=excluded.name,institution_type=excluded.institution_type,ownership_type=excluded.ownership_type,listing_status=excluded.listing_status,exchange=excluded.exchange,official_url=excluded.official_url,registry_status=excluded.registry_status,updated_at=CURRENT_TIMESTAMP"""), {"ticker":ticker,"name":name,"institution_type":r.get("institution_type") or None,"ownership_type":r.get("ownership_type") or None,"listing_status":listing_status,"exchange":r.get("exchange") or None,"official_url":r.get("official_url") or None,"registry_status":registry_status})
             saved+=1
-    return {"filename":file.filename,"records_seen":len(rows),"records_saved":saved}
+    return {"filename":file.filename,"records_seen":len(rows),"records_saved":saved,"skipped":len(skipped),"skip_details":skipped[:100]}
 
 @app.post("/import/csv", dependencies=[Depends(require_write)])
 async def import_csv(file: UploadFile=File(...)):
@@ -154,17 +217,23 @@ async def import_csv(file: UploadFile=File(...)):
     required={"ticker","period","metric","value","unit","consolidation","source_name","source_url","published_at","verification_status"}
     if not rows or not required.issubset(set(rows[0])): raise HTTPException(422,"CSV columns required: "+", ".join(sorted(required)))
     saved=0
-    for r in rows:
+    skipped=[]
+    for row_no, r in enumerate(rows, start=2):
         metric=r["metric"].strip()
-        if metric not in METRIC_CATALOG: continue
+        if metric not in METRIC_CATALOG:
+            skipped.append({"row":row_no,"reason":"unknown metric"}); continue
         try: val=float(r["value"]) if r["value"].strip() else None
-        except ValueError: continue
-        o=ObservationIn(ticker=r["ticker"],period=r["period"],metric=metric,value=val,unit=r["unit"] or METRIC_CATALOG[metric]["unit"],consolidation=r["consolidation"] or "consolidated",source_name=r["source_name"] or "CSV import",source_url=r["source_url"] or None,published_at=r["published_at"] or None,verification_status=r["verification_status"] or "unverified")
-        _upsert_observation(o)
-        saved+=1
+        except ValueError:
+            skipped.append({"row":row_no,"reason":"invalid numeric value"}); continue
+        o=ObservationIn(ticker=r["ticker"],period=r["period"],metric=metric,value=val,unit=r["unit"] or METRIC_CATALOG[metric]["unit"],consolidation=r["consolidation"] or "consolidated",source_name=r["source_name"] or "CSV import",source_url=r["source_url"] or None,published_at=r["published_at"] or None,verification_status=r["verification_status"] or "unverified",note=r.get("note") or None)
+        try:
+            _upsert_observation(o)
+            saved+=1
+        except HTTPException as exc:
+            skipped.append({"row":row_no,"reason":str(exc.detail)})
     with engine.begin() as c:
         c.execute(text("INSERT INTO ingestion_runs(source_name,status,records_seen,records_saved,message,finished_at) VALUES(:s,:st,:seen,:saved,:m,CURRENT_TIMESTAMP)"),{"s":file.filename,"st":"completed","seen":len(rows),"saved":saved,"m":"CSV import; skipped unknown metrics/invalid values"})
-    return {"filename":file.filename,"records_seen":len(rows),"records_saved":saved,"skipped":len(rows)-saved}
+    return {"filename":file.filename,"records_seen":len(rows),"records_saved":saved,"skipped":len(rows)-saved,"skip_details":skipped[:100]}
 
 @app.get("/market/ssi/securities")
 def ssi_securities(market: Optional[str]=None):
