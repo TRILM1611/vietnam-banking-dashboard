@@ -1,0 +1,23 @@
+name: Backend syntax check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Vietnam_Banking_Dashboard_V1.1/vn_banking_dashboard_free/backend/**"
+      - ".github/workflows/backend-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Vietnam_Banking_Dashboard_V1.1/vn_banking_dashboard_free/backend/**"
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile backend modules
+        run: python -m compileall -q Vietnam_Banking_Dashboard_V1.1/vn_banking_dashboard_free/backend
