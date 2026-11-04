@@ -20,4 +20,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile backend modules
-        run: python -m compileall -q Vietnam_Banking_Dashboard_V1.1/vn_banking_dashboard_free/backend
+        run: python -m compileall -q Ngan-hang/vn_banking_dashboard_free/backend
