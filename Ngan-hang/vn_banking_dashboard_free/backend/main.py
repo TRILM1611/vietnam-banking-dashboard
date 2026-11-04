@@ -181,11 +181,11 @@ def dashboard_coverage():
             ORDER BY b.ticker
         """)))
     def period_key(value):
-        q=re.fullmatch(r"Q([1-4])/(20\\d{2})", value or "")
+        q=re.fullmatch(r"Q([1-4])/(20\d{2})", value or "")
         if q: return int(q.group(2))*10+int(q.group(1))
-        h=re.fullmatch(r"H([1-2])/(20\\d{2})", value or "")
+        h=re.fullmatch(r"H([1-2])/(20\d{2})", value or "")
         if h: return int(h.group(2))*10+int(h.group(1))*2
-        fy=re.fullmatch(r"FY(20\\d{2})", value or "")
+        fy=re.fullmatch(r"FY(20\d{2})", value or "")
         if fy: return int(fy.group(1))*10+5
         return 0
     result=[]
