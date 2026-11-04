@@ -14,6 +14,11 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./banking.db")
+# Neon commonly provides postgresql:// URLs; SQLAlchemy must use the installed psycopg v3 driver.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 WRITE_KEY = os.getenv("BANKING_WRITE_KEY", "")
 CORS_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",") if x.strip()]
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
