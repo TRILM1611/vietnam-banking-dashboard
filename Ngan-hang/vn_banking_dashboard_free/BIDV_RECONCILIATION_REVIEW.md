@@ -35,3 +35,13 @@ The official audited consolidated annual reports reconcile the source financial-
 - The highlights `Tiền gửi và phát hành giấy tờ có giá` series is customer deposits plus issued valuable papers: FY2023 1,894,176.921; FY2024 2,152,065.651; FY2025 2,448,399.402 tỷ đồng. Customer deposits alone are 1,704,690.185; 1,953,165.486; 2,222,991.628 tỷ đồng.
 - These reconciled values are in `BIDV_CONSOLIDATED_FY2023_FY2025_VERIFIED.csv` (15 rows). The original highlights staging file remains preserved as source transcription and review-only; its metric labels are not used as if they meant gross loans or customer deposits.
 - Ratio series remain separate pending methodology and scope reconciliation. In particular, ROE/ROA differ between the financial-information table and annual-report consolidated highlights, while CAR and NPL require explicit regulatory/scope labels.
+
+
+## Q3/2026 consolidated balance-sheet candidate — 05 November 2026
+
+BIDV's official disclosure page confirms that the interim consolidated financial statements for Q3/2026 were published on 30/10/2026. The report is for the period ended 30/09/2026 and is denominated in million VND:
+- Official BIDV disclosure page: https://bidv.com.vn/bidv/quan-he-nha-dau-tu/bao-cao-va-tai-lieu/baocaotaichinh/2026/cbtt%2Bbctc%2Brl%2Bgiua%2Bnien%2Bdo%2Bq3
+- The report text currently available through indexed document extraction yields candidate consolidated values: total assets 3,493,270.820; gross customer loans 2,561,795.181; net customer loans 2,526,923.877; customer deposits 2,360,524.779; issued valuable papers 311,012.621 (all tỷ đồng after dividing source amounts in million VND by 1,000).
+- Derived checks: gross loans less loan-loss allowance 34,871.304 equals net loans 2,526,923.877; customer deposits plus issued valuable papers equals combined funding 2,671,537.400. Total liabilities and equity reconcile to total assets at 3,493,270.820.
+- These five rows are staged in `BIDV_Q3_2026_CONSOLIDATED_STAGING.csv` with `review_required`, not `verified`. The official disclosure page and publication date are confirmed, but the direct original attachment has not yet been retrieved and audited page-by-page. Do not import these candidates into the public verified dataset until that final source check is complete.
+- Q3/2026 ratios (NPL, CAR, ROE, ROA, NIM, CIR, LLR) remain out of the standardized batch until scope, formula, and period basis are independently checked. Do not annualize 9M income statement flows as Q3-only values.
