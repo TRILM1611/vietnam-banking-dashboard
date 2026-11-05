@@ -21,6 +21,7 @@ concurrency:
 jobs:
   import-production:
     if: ${{ github.event.inputs.confirm_import == 'IMPORT_28_VERIFIED_ROWS' }}
+    environment: BANKING_API_URL
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
