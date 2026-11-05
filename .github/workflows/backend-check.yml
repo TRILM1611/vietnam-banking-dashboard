@@ -10,6 +10,8 @@ on:
     branches: [main, "fix/**"]
     paths:
       - "Ngan-hang/vn_banking_dashboard_free/backend/**"
+      - "Ngan-hang/vn_banking_dashboard_free/index.html"
+      - ".github/workflows/backend-check.yml"
 
 jobs:
   compile:
