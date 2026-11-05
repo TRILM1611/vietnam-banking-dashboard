@@ -14,3 +14,5 @@ car,CAR,%,Tỷ lệ an toàn vốn; ghi rõ solo/hợp nhất và chuẩn tính,
 price,Giá cổ phiếu,đồng/cp,Giá đóng cửa; ghi rõ điều chỉnh/chưa điều chỉnh,Daily,Nhà cung cấp dữ liệu được cấp phép
 bvps,BVPS,đồng/cp,Vốn chủ sở hữu thuộc cổ đông công ty mẹ / số cổ phiếu,Quarterly,Tự tính
 eps,EPS,đồng/cp,EPS cơ bản/pha loãng; ghi rõ TTM/FY,Quarterly,BCTC hoặc nhà cung cấp
+total_liabilities,Tổng nợ phải trả,tỷ đồng,Tổng nợ phải trả tại ngày kết thúc kỳ theo BCTC hợp nhất; đối chiếu tổng tài sản = nợ phải trả + vốn chủ sở hữu,Quarterly,Bảng cân đối kế toán hợp nhất
+total_equity,Tổng vốn chủ sở hữu,tỷ đồng,Tổng vốn chủ sở hữu bao gồm lợi ích cổ đông không kiểm soát tại ngày kết thúc kỳ,Quarterly,Bảng cân đối kế toán hợp nhất
