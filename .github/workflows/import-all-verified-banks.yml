@@ -1,0 +1,147 @@
+name: Import all currently verified bank observations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_import:
+        description: "Type the exact confirmation to import the fixed 49-row verified batch"
+        required: true
+        type: choice
+        options:
+          - DO_NOT_IMPORT
+          - IMPORT_ALL_VERIFIED_BANKS_49
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-production-verified-import
+  cancel-in-progress: false
+
+jobs:
+  import-production:
+    if: ${{ github.event.inputs.confirm_import == 'IMPORT_ALL_VERIFIED_BANKS_49' }}
+    environment: BANKING_API_URL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate, import and verify the complete verified batch
+        env:
+          BANKING_API_URL: ${{ secrets.BANKING_API_URL }}
+          BANKING_WRITE_KEY: ${{ secrets.BANKING_WRITE_KEY }}
+        run: |
+          python - <<'PY'
+          import csv, io, json, math, os, sys, urllib.error, urllib.request, uuid
+
+          BASE = (os.environ.get("BANKING_API_URL") or "").rstrip("/")
+          KEY = os.environ.get("BANKING_WRITE_KEY") or ""
+          PATH = "Ngan-hang/vn_banking_dashboard_free/VERIFIED_IMPORT_BATCH_ALL_BANKS_2026-11-05.csv"
+          EXPECTED_COUNT = 49
+          EXPECTED_TICKERS = {"ACB", "TCB", "CTG", "BID", "MBB", "SHB", "NVB"}
+
+          def stop(message):
+              print("FAILED:", message)
+              sys.exit(1)
+
+          if not BASE.startswith("https://") or not KEY:
+              stop("Production API URL or write secret is missing/invalid.")
+
+          with open(PATH, encoding="utf-8-sig", newline="") as f:
+              raw = f.read()
+          rows = list(csv.DictReader(io.StringIO(raw)))
+          required = {"ticker","period","metric","value","unit","consolidation","source_name","source_url","published_at","verification_status"}
+          if len(rows) != EXPECTED_COUNT or not required.issubset(rows[0].keys()):
+              stop(f"Expected {EXPECTED_COUNT} rows and all required columns; found {len(rows)}.")
+
+          keys = set()
+          tickers = set()
+          for line, row in enumerate(rows, 2):
+              ticker = row["ticker"].strip().upper()
+              key = (ticker,row["period"].strip(),row["metric"].strip(),row["consolidation"].strip())
+              tickers.add(ticker)
+              if key in keys:
+                  stop(f"Duplicate observation key at CSV line {line}: {key}")
+              keys.add(key)
+              if row["verification_status"].strip() != "verified":
+                  stop(f"Non-verified record at CSV line {line}.")
+              if not row["source_url"].strip().startswith("https://"):
+                  stop(f"Missing HTTPS source at CSV line {line}.")
+              try:
+                  float(row["value"])
+              except ValueError:
+                  stop(f"Invalid numeric value at CSV line {line}.")
+          if tickers != EXPECTED_TICKERS:
+              stop("Ticker set mismatch: " + ", ".join(sorted(tickers)))
+          
+          def get_json(path):
+              req = urllib.request.Request(BASE + path, headers={"Accept":"application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=40) as response:
+                      return json.loads(response.read().decode("utf-8"))
+              except Exception as exc:
+                  stop(f"GET {path} failed: {type(exc).__name__}: {exc}")
+
+          health = get_json("/health")
+          if health.get("status") != "ok" or health.get("database") != "connected":
+              stop("Production API health/database check failed.")
+          banks = get_json("/banks")
+          registered = {b.get("ticker") for b in banks if isinstance(b,dict)}
+          missing = EXPECTED_TICKERS - registered
+          if missing:
+              stop("Registry missing tickers: " + ", ".join(sorted(missing)) + ". No import attempted.")
+
+          boundary = "----VerifiedBankImport" + uuid.uuid4().hex
+          body = (f"--{boundary}\r\n"
+                  f'Content-Disposition: form-data; name="file"; filename="VERIFIED_IMPORT_BATCH_ALL_BANKS_2026-11-05.csv"\r\n'
+                  "Content-Type: text/csv; charset=utf-8\r\n\r\n").encode() + raw.encode() + f"\r\n--{boundary}--\r\n".encode()
+          request = urllib.request.Request(BASE + "/import/csv", data=body, method="POST", headers={
+              "X-API-Key":KEY,
+              "Content-Type":f"multipart/form-data; boundary={boundary}",
+              "Accept":"application/json"
+          })
+          try:
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  result = json.loads(response.read().decode("utf-8"))
+          except urllib.error.HTTPError as exc:
+              stop(f"Import API HTTP {exc.code}: " + exc.read().decode(errors="replace")[:1200])
+          except Exception as exc:
+              stop(f"Import request failed: {type(exc).__name__}: {exc}")
+          if result.get("records_seen") != EXPECTED_COUNT or result.get("records_saved") != EXPECTED_COUNT or result.get("skipped") != 0:
+              stop("Import response not exactly 49 saved / 0 skipped: " + json.dumps(result,ensure_ascii=False))
+
+          observations = get_json("/observations?limit=20000")
+          indexed = {(o.get("ticker"),o.get("period"),o.get("metric"),o.get("consolidation")):o
+                     for o in observations if isinstance(o,dict)}
+          mismatches=[]
+          for row in rows:
+              key=(row["ticker"].strip().upper(),row["period"].strip(),row["metric"].strip(),row["consolidation"].strip())
+              actual=indexed.get(key)
+              if actual is None:
+                  mismatches.append("missing "+str(key)); continue
+              try:
+                  if not math.isclose(float(actual.get("value")),float(row["value"]),rel_tol=1e-10,abs_tol=1e-8):
+                      mismatches.append("value mismatch "+str(key))
+              except (TypeError,ValueError):
+                  mismatches.append("invalid stored value "+str(key))
+              if actual.get("verification_status") != "verified":
+                  mismatches.append("verification mismatch "+str(key))
+              if actual.get("source_url") != row["source_url"]:
+                  mismatches.append("source URL mismatch "+str(key))
+          if mismatches:
+              stop("Read-back verification failed: "+"; ".join(mismatches[:15]))
+
+          dashboard=get_json("/dashboard/records")
+          expected_groups={(r["ticker"].strip().upper(),r["period"].strip()) for r in rows}
+          dashboard_groups={(r.get("ticker"),r.get("period")) for r in dashboard if isinstance(r,dict)}
+          missing_groups=expected_groups-dashboard_groups
+          if missing_groups:
+              stop("Dashboard API missing groups: "+", ".join(map(str,sorted(missing_groups))))
+          print("SUCCESS: 49/49 rows accepted; 0 skipped.")
+          print("SUCCESS: all 49 observations verified by read-back (value, source URL, verification status).")
+          print(f"SUCCESS: Dashboard API exposes all {len(expected_groups)} expected ticker/period groups.")
+          print("Tickers:",", ".join(sorted(EXPECTED_TICKERS)))
+          print("No database credentials or API keys were printed.")
+          PY
