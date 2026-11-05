@@ -184,9 +184,3 @@ jobs:
           print("No database credentials or API keys were printed.")
           PY
 
-    steps_if_not_confirmed:
-      - name: Refuse unconfirmed run
-        if: ${{ github.event.inputs.confirm_import != 'IMPORT_28_VERIFIED_ROWS' }}
-        run: |
-          echo "Import not authorized. Select IMPORT_28_VERIFIED_ROWS to proceed."
-          exit 1
