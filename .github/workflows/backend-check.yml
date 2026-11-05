@@ -21,3 +21,7 @@ jobs:
           python-version: "3.12"
       - name: Compile backend modules
         run: python -m compileall -q Ngan-hang/vn_banking_dashboard_free/backend
+      - name: Run backend validation tests
+        env:
+          APP_ENV: test
+        run: python -m unittest discover -s Ngan-hang/vn_banking_dashboard_free/backend/tests -v
