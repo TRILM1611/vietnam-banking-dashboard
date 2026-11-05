@@ -1,0 +1,2 @@
+run_date,registry_size,verified_tickers,verified_observations,not_yet_imported_tickers,notes
+2026-11-05,28,"ACB;TCB;CTG;BID;MBB;SHB;NVB",49,"ABB;BAB;BVB;EIB;HDB;KLB;LPB;MSB;NAB;OCB;PGB;SGB;SSB;STB;TPB;VAB;VBB;VCB;VIB;VPB;PCB","49 verified observations consolidated for 7 registry tickers. NVB is the listed ticker for NCB; do not import under ticker NCB. Other registry tickers require source/PDF extraction and verification before import."
