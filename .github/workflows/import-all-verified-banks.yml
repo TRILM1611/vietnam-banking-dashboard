@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   import-production:
-    if: ${{ github.event.inputs.confirm_import == 'IMPORT_ALL_VERIFIED_BANKS_63' }}
+    if: ${{ github.event.inputs.confirm_import == 'IMPORT_ALL_VERIFIED_BANKS_77' }}
     environment: BANKING_API_URL
     runs-on: ubuntu-latest
     timeout-minutes: 15
