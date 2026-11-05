@@ -23,7 +23,7 @@ ticker,latest_period_confirmed,official_source_url,publication_date,evidence_sta
 "TPB","","","","not_yet_confirmed","No current Q3/2026 source evidence captured in this sweep; check issuer and HOSE disclosures."
 "VAB","2026 Q3","https://www.vietabank.com.vn/investors/financial-statements.html","2026-10-27","official_page_confirmed","Official page lists separate and consolidated Q3/2026 statements dated 27/10/2026; direct PDFs and extraction pending."
 "VBB","","","","not_yet_confirmed","No current Q3/2026 source evidence captured in this sweep; check issuer and UPCoM disclosures."
-"VCB","2026 Q2","https://www.vietcombank.com.vn/Nha-dau-tu","2026 Q2","official_page_confirmed","Latest period observed in existing project pilot register is Q2/2026; Q3/2026 not yet confirmed in this sweep. Recheck official event calendar."
+"VCB","2026 Q2","https://www.vietcombank.com.vn/Nha-dau-tu","","official_page_confirmed","Latest period observed in existing project pilot register is Q2/2026; Q3/2026 not yet confirmed in this sweep. Recheck official event calendar."
 "VIB","","","","not_yet_confirmed","No current Q3/2026 source evidence captured in this sweep; check issuer and HOSE disclosures."
 "VPB","2026 Q3","https://www.vpbank.com.vn/en/quan-he-nha-dau-tu/bao-cao-tai-chinh","2026-10-19","official_page_confirmed","Official financial reports page lists Q3/2026 consolidated and separate statements dated 19/10/2026; direct PDFs and extraction pending."
 "PCB","","","","not_yet_confirmed","No current Q3/2026 source evidence captured in this sweep; check issuer and UPCoM disclosures."
