@@ -1,4 +1,4 @@
-"""Minhtriinvest Vietnam Banking Data API v1.1.
+"""Minhtriinvest Vietnam Banking Data API v1.3.
 Supports SQLite for local development and PostgreSQL/Supabase via DATABASE_URL.
 Provider secrets stay server-side. No vendor fundamental feed is enabled by default.
 """
@@ -105,7 +105,7 @@ def require_write(x_api_key: Optional[str] = Header(None)):
 def rowdicts(result): return [dict(r._mapping) for r in result]
 
 @app.get("/")
-def root(): return {"service":"Minhtriinvest Banking API", "version":"1.1.0", "docs":"/docs", "health":"/health"}
+def root(): return {"service":"Minhtriinvest Banking API", "version":"1.3.0", "docs":"/docs", "health":"/health"}
 @app.get("/health")
 def health():
     """Liveness plus a real database round-trip; never returns connection secrets."""
