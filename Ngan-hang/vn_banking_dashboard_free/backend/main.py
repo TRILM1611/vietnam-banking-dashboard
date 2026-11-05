@@ -163,6 +163,47 @@ def dashboard_periods():
         return 0
     return {"periods":sorted(periods,key=period_key,reverse=True)}
 
+@app.get("/dashboard/coverage")
+def dashboard_coverage():
+    """Coverage is based only on periods actually imported; it is not an inferred listing date."""
+    with engine.connect() as c:
+        banks = rowdicts(c.execute(text("""
+            SELECT b.ticker,b.name,b.listing_status,b.exchange,
+                   MIN(o.period) AS first_period_raw,
+                   MAX(o.period) AS last_period_raw,
+                   COUNT(DISTINCT o.period) AS period_count,
+                   COUNT(DISTINCT CASE WHEN o.period LIKE 'Q%/%' THEN o.period END) AS quarter_count,
+                   COUNT(DISTINCT CASE WHEN o.period LIKE 'FY%' THEN o.period END) AS annual_count,
+                   COUNT(DISTINCT CASE WHEN o.verification_status='verified' THEN o.period END) AS verified_period_count,
+                   COUNT(o.id) AS observation_count
+            FROM banks b LEFT JOIN observations o ON o.ticker=b.ticker
+            GROUP BY b.ticker,b.name,b.listing_status,b.exchange
+            ORDER BY b.ticker
+        """)))
+    def period_key(value):
+        q=re.fullmatch(r"Q([1-4])/(20\d{2})", value or "")
+        if q: return int(q.group(2))*10+int(q.group(1))
+        h=re.fullmatch(r"H([1-2])/(20\d{2})", value or "")
+        if h: return int(h.group(2))*10+int(h.group(1))*2
+        fy=re.fullmatch(r"FY(20\d{2})", value or "")
+        if fy: return int(fy.group(1))*10+5
+        return 0
+    result=[]
+    for b in banks:
+        periods=[]
+        if b.get("first_period_raw"):
+            with engine.connect() as c:
+                periods=[r[0] for r in c.execute(text("SELECT DISTINCT period FROM observations WHERE ticker=:ticker"), {"ticker":b["ticker"]}).fetchall()]
+        periods=sorted(periods,key=period_key)
+        result.append({
+            "ticker":b["ticker"],"name":b["name"],"listing_status":b.get("listing_status"),"exchange":b.get("exchange"),
+            "first_data_period":periods[0] if periods else None,"latest_data_period":periods[-1] if periods else None,
+            "period_count":b.get("period_count") or 0,"quarter_count":b.get("quarter_count") or 0,
+            "annual_count":b.get("annual_count") or 0,"verified_period_count":b.get("verified_period_count") or 0,
+            "observation_count":b.get("observation_count") or 0
+        })
+    return {"basis":"actual_imported_periods_only","banks":result}
+
 @app.get("/dashboard/records")
 def dashboard_records(period: Optional[str]=None):
     q="SELECT o.*,b.name,b.exchange,b.listing_status FROM observations o LEFT JOIN banks b ON b.ticker=o.ticker WHERE 1=1"; p={}
