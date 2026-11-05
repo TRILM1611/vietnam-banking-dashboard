@@ -27,3 +27,11 @@ jobs:
         env:
           APP_ENV: test
         run: python -m unittest discover -s Ngan-hang/vn_banking_dashboard_free/backend/tests -v
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check dashboard JavaScript syntax
+        run: |
+          python -c "from pathlib import Path; import re; p=Path('Ngan-hang/vn_banking_dashboard_free/index.html'); s=p.read_text(encoding='utf-8'); m=re.search(r'<script>(.*?)</script>', s, re.S); assert m, 'inline dashboard script not found'; Path('/tmp/dashboard.js').write_text(m.group(1), encoding='utf-8')"
+          node --check /tmp/dashboard.js
