@@ -7,7 +7,7 @@ on:
       - "Ngan-hang/vn_banking_dashboard_free/backend/**"
       - ".github/workflows/backend-check.yml"
   push:
-    branches: [main]
+    branches: [main, "fix/**"]
     paths:
       - "Ngan-hang/vn_banking_dashboard_free/backend/**"
 
