@@ -69,7 +69,7 @@ function bctcLabel(s){return ({official_pdf_confirmed:'PDF chính thức',offici
 function bctcClass(s){return s.startsWith('official_pdf')?'ok':s.startsWith('official_page')?'warn':s==='exchange_index_found'?'warn':'demo'}
 function renderBctc(){
  const q=($('bctcSearch').value||'').toLowerCase(),f=$('bctcStatus').value;
- const official=BCTC_RECORDS.filter(r=>r.status.startsWith('official_')).length;
+ const official=BCTC_RECORDS.filter(r=>r.period==='Q3/2026'&&r.status.startsWith('official_')).length;
  const q3=BCTC_RECORDS.filter(r=>r.period==='Q3/2026').length;
  const pending=BCTC_RECORDS.filter(r=>r.status==='not_yet_confirmed').length;
  const q2=BCTC_RECORDS.filter(r=>r.period==='Q2/2026').length;
