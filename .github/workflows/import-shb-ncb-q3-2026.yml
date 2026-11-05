@@ -1,0 +1,131 @@
+name: Import verified SHB and NCB Q3 2026 observations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_import:
+        description: "Confirm import of 14 verified SHB and NCB Q3/2026 observations"
+        required: true
+        type: choice
+        options:
+          - DO_NOT_IMPORT
+          - IMPORT_SHB_NCB_Q3_2026
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-production-verified-import
+  cancel-in-progress: false
+
+jobs:
+  import-production:
+    if: ${{ github.event.inputs.confirm_import == 'IMPORT_SHB_NCB_Q3_2026' }}
+    environment: BANKING_API_URL
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate, import and verify SHB and NCB Q3 2026
+        env:
+          BANKING_API_URL: ${{ secrets.BANKING_API_URL }}
+          BANKING_WRITE_KEY: ${{ secrets.BANKING_WRITE_KEY }}
+        run: |
+          python - <<'PY'
+          import csv, io, json, math, os, sys, urllib.error, urllib.request, uuid
+
+          BASE = (os.environ.get("BANKING_API_URL") or "").rstrip("/")
+          KEY = os.environ.get("BANKING_WRITE_KEY") or ""
+          CSV_PATH = "Ngan-hang/vn_banking_dashboard_free/SHB_NCB_Q3_2026_CONSOLIDATED_VERIFIED.csv"
+          EXPECTED_COUNT = 14
+          METRICS = ("assets", "loans", "loans_net", "deposits", "funding_deposits_and_securities", "total_liabilities", "total_equity")
+          TICKERS = ("SHB", "NCB")
+          EXPECTED_KEYS = {(ticker, "Q3/2026", metric, "consolidated") for ticker in TICKERS for metric in METRICS}
+
+          def stop(message):
+              print("FAILED:", message)
+              sys.exit(1)
+
+          if not BASE.startswith("https://") or not KEY:
+              stop("Production API URL or write secret is missing/invalid.")
+
+          with open(CSV_PATH, encoding="utf-8-sig", newline="") as f:
+              raw = f.read()
+          rows = list(csv.DictReader(io.StringIO(raw)))
+          required = {"ticker", "period", "metric", "value", "unit", "consolidation", "source_name", "source_url", "published_at", "verification_status"}
+          if len(rows) != EXPECTED_COUNT or not required.issubset(rows[0].keys()):
+              stop("CSV row count or required columns do not match the approved batch.")
+
+          keys = set()
+          for line, row in enumerate(rows, 2):
+              key = (row["ticker"].strip().upper(), row["period"].strip(), row["metric"].strip(), row["consolidation"].strip())
+              if key in keys or row["verification_status"].strip() != "verified":
+                  stop(f"Duplicate key or non-verified row at CSV line {line}.")
+              keys.add(key)
+              if not row["source_url"].startswith("https://"):
+                  stop(f"Missing HTTPS source at CSV line {line}.")
+              try:
+                  float(row["value"])
+              except ValueError:
+                  stop(f"Invalid numeric value at CSV line {line}.")
+          if keys != EXPECTED_KEYS:
+              stop("CSV keys do not exactly match the approved SHB/NCB batch.")
+
+          def get_json(path):
+              req = urllib.request.Request(BASE + path, headers={"Accept": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      return json.loads(response.read().decode("utf-8"))
+              except Exception as exc:
+                  stop(f"GET {path} failed: {type(exc).__name__}: {exc}")
+
+          health = get_json("/health")
+          if health.get("status") != "ok" or health.get("database") != "connected":
+              stop("Production API health/database check failed.")
+          banks = get_json("/banks")
+          registered = {b.get("ticker") for b in banks if isinstance(b, dict)}
+          if not set(TICKERS).issubset(registered):
+              stop("SHB or NCB is missing from the Production bank registry.")
+          catalog = get_json("/metrics/catalog")
+          missing_metrics = set(METRICS) - set(catalog)
+          if missing_metrics:
+              stop("Production API metric catalog missing: " + ", ".join(sorted(missing_metrics)))
+
+          boundary = "----SHBNCBImport" + uuid.uuid4().hex
+          body = (f"--{boundary}\r\n"
+                  f'Content-Disposition: form-data; name="file"; filename="SHB_NCB_Q3_2026_CONSOLIDATED_VERIFIED.csv"\r\n'
+                  "Content-Type: text/csv; charset=utf-8\r\n\r\n").encode() + raw.encode() + f"\r\n--{boundary}--\r\n".encode()
+          req = urllib.request.Request(BASE + "/import/csv", data=body, method="POST", headers={
+              "X-API-Key": KEY, "Content-Type": f"multipart/form-data; boundary={boundary}", "Accept": "application/json"})
+          try:
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  result = json.loads(response.read().decode())
+          except urllib.error.HTTPError as exc:
+              stop(f"Import API returned HTTP {exc.code}: " + exc.read().decode(errors="replace")[:1000])
+          except Exception as exc:
+              stop(f"Import request failed: {type(exc).__name__}: {exc}")
+          if result.get("records_seen") != EXPECTED_COUNT or result.get("records_saved") != EXPECTED_COUNT or result.get("skipped") != 0:
+              stop("Import response did not confirm exactly 14 saved and 0 skipped: " + json.dumps(result))
+
+          observations = get_json("/observations?limit=20000")
+          indexed = {(o.get("ticker"), o.get("period"), o.get("metric"), o.get("consolidation")): o for o in observations if isinstance(o, dict)}
+          for row in rows:
+              key = (row["ticker"].strip().upper(), row["period"].strip(), row["metric"].strip(), row["consolidation"].strip())
+              actual = indexed.get(key)
+              if actual is None or not math.isclose(float(actual.get("value")), float(row["value"]), rel_tol=1e-10, abs_tol=1e-8):
+                  stop("Read-back missing or value mismatch for " + str(key))
+              if actual.get("verification_status") != "verified" or actual.get("source_url") != row["source_url"]:
+                  stop("Read-back source/status mismatch for " + str(key))
+
+          dashboard = get_json("/dashboard/records")
+          for ticker in TICKERS:
+              group = next((r for r in dashboard if r.get("ticker") == ticker and r.get("period") == "Q3/2026"), None)
+              if not group or any(group.get(metric) is None for metric in METRICS):
+                  stop(f"Dashboard API does not expose all 7 expected metrics for {ticker}.")
+          print("SUCCESS: 14/14 SHB and NCB Q3/2026 observations imported; 0 skipped.")
+          print("SUCCESS: all 14 observations verified by read-back (value, source URL, verification status).")
+          print("SUCCESS: Dashboard API exposes all 7 expected metrics for SHB and NCB.")
+          print("No database credentials or API keys were printed.")
+          PY
