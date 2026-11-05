@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       confirm_import:
-        description: "Type the exact confirmation to import the fixed 49-row verified batch"
+        description: "Type the exact confirmation to import the fixed 56-row verified batch"
         required: true
         type: choice
         options:
           - DO_NOT_IMPORT
-          - IMPORT_ALL_VERIFIED_BANKS_49
+          - IMPORT_ALL_VERIFIED_BANKS_56
 
 permissions:
   contents: read
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   import-production:
-    if: ${{ github.event.inputs.confirm_import == 'IMPORT_ALL_VERIFIED_BANKS_49' }}
+    if: ${{ github.event.inputs.confirm_import == 'IMPORT_ALL_VERIFIED_BANKS_56' }}
     environment: BANKING_API_URL
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -39,8 +39,8 @@ jobs:
           BASE = (os.environ.get("BANKING_API_URL") or "").rstrip("/")
           KEY = os.environ.get("BANKING_WRITE_KEY") or ""
           PATH = "Ngan-hang/vn_banking_dashboard_free/VERIFIED_IMPORT_BATCH_ALL_BANKS_2026-11-05.csv"
-          EXPECTED_COUNT = 49
-          EXPECTED_TICKERS = {"ACB", "TCB", "CTG", "BID", "MBB", "SHB", "NVB"}
+          EXPECTED_COUNT = 56
+          EXPECTED_TICKERS = {"ACB", "TCB", "CTG", "BID", "MBB", "SHB", "NVB", "STB"}
 
           def stop(message):
               print("FAILED:", message)
@@ -110,7 +110,7 @@ jobs:
           except Exception as exc:
               stop(f"Import request failed: {type(exc).__name__}: {exc}")
           if result.get("records_seen") != EXPECTED_COUNT or result.get("records_saved") != EXPECTED_COUNT or result.get("skipped") != 0:
-              stop("Import response not exactly 49 saved / 0 skipped: " + json.dumps(result,ensure_ascii=False))
+              stop("Import response not exactly 56 saved / 0 skipped: " + json.dumps(result,ensure_ascii=False))
 
           observations = get_json("/observations?limit=20000")
           indexed = {(o.get("ticker"),o.get("period"),o.get("metric"),o.get("consolidation")):o
@@ -139,8 +139,8 @@ jobs:
           missing_groups=expected_groups-dashboard_groups
           if missing_groups:
               stop("Dashboard API missing groups: "+", ".join(map(str,sorted(missing_groups))))
-          print("SUCCESS: 49/49 rows accepted; 0 skipped.")
-          print("SUCCESS: all 49 observations verified by read-back (value, source URL, verification status).")
+          print("SUCCESS: 56/56 rows accepted; 0 skipped.")
+          print("SUCCESS: all 56 observations verified by read-back (value, source URL, verification status).")
           print(f"SUCCESS: Dashboard API exposes all {len(expected_groups)} expected ticker/period groups.")
           print("Tickers:",", ".join(sorted(EXPECTED_TICKERS)))
           print("No database credentials or API keys were printed.")
