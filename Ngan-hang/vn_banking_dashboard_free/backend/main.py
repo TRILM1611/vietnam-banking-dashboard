@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
+# V1.3: fail closed on Render if the persistent PostgreSQL connection is absent.
 IS_PRODUCTION = (os.getenv("APP_ENV", "").lower() == "production" or os.getenv("RENDER", "").lower() == "true" or bool(os.getenv("RENDER_SERVICE_ID")))
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
