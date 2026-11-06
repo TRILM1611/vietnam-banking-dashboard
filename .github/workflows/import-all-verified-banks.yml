@@ -139,7 +139,7 @@ jobs:
           missing_groups=expected_groups-dashboard_groups
           if missing_groups:
               stop("Dashboard API missing groups: "+", ".join(map(str,sorted(missing_groups))))
-          print("SUCCESS: 77/84 rows accepted; 0 skipped.")
+          print("SUCCESS: 84/84 rows accepted; 0 skipped.")
           print("SUCCESS: all 84 observations verified by read-back (value, source URL, verification status).")
           print(f"SUCCESS: Dashboard API exposes all {len(expected_groups)} expected ticker/period groups.")
           print("Tickers:",", ".join(sorted(EXPECTED_TICKERS)))
